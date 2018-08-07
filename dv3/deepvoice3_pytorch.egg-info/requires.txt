@@ -1,0 +1,21 @@
+numpy
+scipy
+unidecode
+inflect
+librosa
+numba
+lws <= 1.0
+
+[jp]
+jaconv
+mecab-python3
+
+[test]
+nose
+
+[train]
+docopt
+tqdm
+tensorboardX
+nnmnkwii >= 0.0.9
+nltk
