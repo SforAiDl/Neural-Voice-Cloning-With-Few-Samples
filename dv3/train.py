@@ -893,7 +893,8 @@ if __name__ == "__main__":
         dataset, batch_size=hparams.batch_size,
         num_workers=hparams.num_workers, sampler=sampler,
         collate_fn=collate_fn, pin_memory=hparams.pin_memory)
-
+    print("dataloader_prepared")
+    exit()
     # Model
     model = build_model()
     if use_cuda:

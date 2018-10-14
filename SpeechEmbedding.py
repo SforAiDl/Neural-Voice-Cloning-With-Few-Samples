@@ -1,4 +1,3 @@
-
 # coding: utf-8
 
 # In[2]:
@@ -18,7 +17,7 @@ from Modules.Encoder import Attention
 # In[ ]:
 
 
-batch_size = 64
+
 N_samples = 23
 
 
@@ -26,19 +25,21 @@ N_samples = 23
 
 
 class Encoder(nn.Module):
-    global batch_size
+
     global N_samples
     def __init__(self):
         super(Encoder, self).__init__()
         self.prenet = PreNet()
         self.conv = Conv1dGLU()
         self.attention = Attention(128)
+
         self.prohead = nn.Linear(128,1)
         self.residual_conv = nn.Linear(128,512)
         self.bn = nn.BatchNorm1d(N_samples)
 
     def forward(self, x):
         #print(x)
+        batch_size = x.size(0)
         x = self.prenet(x)
         x = x.view(batch_size*N_samples, x.size(2), x.size(3)).transpose(1,2)
         x = self.conv(x)
@@ -56,10 +57,14 @@ class Encoder(nn.Module):
         x = self.prohead(x)
         x = torch.squeeze(x)
         x = F.softsign(x)
+        print(x.size())
         x = self.bn(x)
-        x = torch.unsqueeze(x, dim=2)
-        x = torch.bmm(x.transpose(1,2), conv_out)
-        x = torch.squeeze(x)
+        print(x.size())
+        exit()
+        #
+        # x = torch.unsqueeze(x, dim=2)
+        # x = torch.bmm(x.transpose(1,2), conv_out)
+        # x = torch.squeeze(x)
         return x
 
 
