@@ -28,6 +28,9 @@ from dv3.train import train as train_dv3
 from dv3.train import TextDataSource,MelSpecDataSource,LinearSpecDataSource,\
                         PyTorchDataset,PartialyRandomizedSimilarTimeLengthSampler
 from dv3.deepvoice3_pytorch import frontend
+from dv3.train import sequence_mask
+from dv3.train import save_checkpoint as save_checkpoint_dv3
+from dv3.train import save_states as save_states_dv3
 
 
 from utils import generate_cloned_samples, Speech_Dataset
@@ -47,13 +50,16 @@ import os
 batch_size_encoder = 64
 
 
-
+global_step = 0
+global_epoch = 0
 use_cuda = torch.cuda.is_available()
 if use_cuda:
     cudnn.benchmark = False
 
 
-def train(dv3_model , encoder , dv3_optimizer , encoder_optimizer):
+def train(model_dv3 ,data_loader_dv3 , optimizer_dv3,init_lr_dv3=0.002,
+            checkpoint_dir_dv3=None,checkpoint_interval=None,nepochs=None,
+            clip_thresh = 1.0, encoder_optimizer):
     # this training function is to train the combined model
 
     grad = {}
@@ -75,24 +81,181 @@ def train(dv3_model , encoder , dv3_optimizer , encoder_optimizer):
 
     #----------------------DV3------------------
     #foward pass dv3
-    _frontend = getattr(frontend, "en")
+    # _frontend = getattr(frontend, "en")
+    #
+    # dv3_model.eval()
+    # text = "hi bye"
+    # speaker_id = 0
+    # sequence = np.array(_frontend.text_to_sequence(text, p=0))
+    # sequence = Variable(torch.from_numpy(sequence)).unsqueeze(0)
+    # text_positions = torch.arange(1, sequence.size(-1) + 1).unsqueeze(0).long()
+    # text_positions = Variable(text_positions)
+    # speaker_ids = None if speaker_id is None else Variable(torch.LongTensor([speaker_id]))
+    #
+    # if use_cuda:
+    #     sequence = sequence.cuda()
+    #     text_positions = text_positions.cuda()
+    #     speaker_ids = None if speaker_ids is None else speaker_ids.cuda()
+    #
+    # mel_outputs, linear_outputs, alignments, done = dv3_model(
+    #     sequence, text_positions=text_positions, speaker_ids=speaker_ids)
 
-    dv3_model.eval()
-    text = "hi bye"
-    speaker_id = 0
-    sequence = np.array(_frontend.text_to_sequence(text, p=0))
-    sequence = Variable(torch.from_numpy(sequence)).unsqueeze(0)
-    text_positions = torch.arange(1, sequence.size(-1) + 1).unsqueeze(0).long()
-    text_positions = Variable(text_positions)
-    speaker_ids = None if speaker_id is None else Variable(torch.LongTensor([speaker_id]))
 
     if use_cuda:
-        sequence = sequence.cuda()
-        text_positions = text_positions.cuda()
-        speaker_ids = None if speaker_ids is None else speaker_ids.cuda()
+        model = dv3_model.cuda()
+    linear_dim = dv3_model.linear_dim
+    r = hparams.outputs_per_step
+    downsample_step = hparams.downsample_step
+    current_lr = init_lr_dv3
 
-    mel_outputs, linear_outputs, alignments, done = dv3_model(
-        sequence, text_positions=text_positions, speaker_ids=speaker_ids)
+    binary_criterion_dv3 = nn.BCELoss()
+
+    global global_step, global_epoch
+    while global_epoch < nepochs:
+        running_loss = 0.
+        for step, (x, input_lengths, mel, y, positions, done, target_lengths,
+                   speaker_ids) \
+                in tqdm(enumerate(data_loader_dv3)):
+
+
+            dv3_model.zero_grad()
+            encoder.zero_grad()
+            
+            #FOWARD ON ENCODER
+
+
+            encoder_out = encoder(inp)
+
+            #FOWARD PASS DV3
+            model_dv3.train()
+            ismultispeaker = speaker_ids is not None
+            # Learning rate schedule
+            if hparams.lr_schedule is not None:
+                lr_schedule_f = getattr(dv3.lrschedule, hparams.lr_schedule)
+                current_lr = lr_schedule_f(
+                    init_lr, global_step, **hparams.lr_schedule_kwargs)
+                for param_group in optimizer.param_groups:
+                    param_group['lr'] = current_lr
+            optimizer_dv3.zero_grad()
+
+            # Used for Position encoding
+            text_positions, frame_positions = positions
+
+            # Downsample mel spectrogram
+            if downsample_step > 1:
+                mel = mel[:, 0::downsample_step, :].contiguous()
+
+            # Lengths
+            input_lengths = input_lengths.long().numpy()
+            decoder_lengths = target_lengths.long().numpy() // r // downsample_step
+
+            # Feed data
+            x, mel, y = Variable(x), Variable(mel), Variable(y)
+            text_positions = Variable(text_positions)
+            frame_positions = Variable(frame_positions)
+            done = Variable(done)
+            target_lengths = Variable(target_lengths)
+            speaker_ids = Variable(speaker_ids) if ismultispeaker else None
+            if use_cuda:
+                x = x.cuda()
+                text_positions = text_positions.cuda()
+                frame_positions = frame_positions.cuda()
+                y = y.cuda()
+                mel = mel.cuda()
+                done, target_lengths = done.cuda(), target_lengths.cuda()
+                speaker_ids = speaker_ids.cuda() if ismultispeaker else None
+
+            # Create mask if we use masked loss
+            if hparams.masked_loss_weight > 0:
+                # decoder output domain mask
+                decoder_target_mask = sequence_mask(
+                    target_lengths / (r * downsample_step),
+                    max_len=mel.size(1)).unsqueeze(-1)
+                if downsample_step > 1:
+                    # spectrogram-domain mask
+                    target_mask = sequence_mask(
+                        target_lengths, max_len=y.size(1)).unsqueeze(-1)
+                else:
+                    target_mask = decoder_target_mask
+                # shift mask
+                decoder_target_mask = decoder_target_mask[:, r:, :]
+                target_mask = target_mask[:, r:, :]
+            else:
+                decoder_target_mask, target_mask = None, None
+
+
+
+            model_dv3.embed_speakers.weight.data = (encoder_out).data
+            # Apply model
+            mel_outputs, linear_outputs, attn, done_hat = model_dv3(
+                    x, mel, speaker_ids=speaker_ids,
+                    text_positions=text_positions, frame_positions=frame_positions,
+                    input_lengths=input_lengths)
+
+
+
+            # Losses
+            w = hparams.binary_divergence_weight
+
+            # mel:
+            mel_l1_loss, mel_binary_div = spec_loss(
+                    mel_outputs[:, :-r, :], mel[:, r:, :], decoder_target_mask)
+                mel_loss = (1 - w) * mel_l1_loss + w * mel_binary_div
+
+            # done:
+            done_loss = binary_criterion(done_hat, done)
+
+            # linear:
+            n_priority_freq = int(hparams.priority_freq / (fs * 0.5) * linear_dim)
+                linear_l1_loss, linear_binary_div = spec_loss(
+                    linear_outputs[:, :-r, :], y[:, r:, :], target_mask,
+                    priority_bin=n_priority_freq,
+                    priority_w=hparams.priority_freq_weight)
+                linear_loss = (1 - w) * linear_l1_loss + w * linear_binary_div
+
+            # Combine losses
+            loss_dv3 = mel_loss + linear_loss + done_loss
+            loss_dv3 = mel_loss + done_loss
+            loss_dv3 = linear_loss
+
+            # attention
+            if hparams.use_guided_attention:
+                soft_mask = guided_attentions(input_lengths, decoder_lengths,
+                                              attn.size(-2),
+                                              g=hparams.guided_attention_sigma)
+                soft_mask = Variable(torch.from_numpy(soft_mask))
+                soft_mask = soft_mask.cuda() if use_cuda else soft_mask
+                attn_loss = (attn * soft_mask).mean()
+                loss_dv3 += attn_loss
+
+            if global_step > 0 and global_step % checkpoint_interval == 0:
+                save_states_dv3(
+                    global_step, writer, mel_outputs, linear_outputs, attn,
+                    mel, y, input_lengths, checkpoint_dir)
+                save_checkpoint_dv3(
+                    model, optimizer, global_step, checkpoint_dir, global_epoch,
+                    train_seq2seq, train_postnet)
+
+            if global_step > 0 and global_step % hparams.eval_interval == 0:
+                eval_model(global_step, writer, model, checkpoint_dir, ismultispeaker)
+
+            # Update
+            loss_dv3.backward()
+            if clip_thresh> 0:
+                grad_norm = torch.nn.utils.clip_grad_norm(
+                    model.get_trainable_parameters(), clip_thresh)
+            optimizer_dv3.step()
+
+
+            global_step += 1
+            running_loss += loss.data[0]
+
+        averaged_loss = running_loss / (len(data_loader))
+
+        print("Loss: {}".format(running_loss / (len(data_loader))))
+
+        global_epoch += 1
+
 
     # dv3 loss function
     # backward on that
