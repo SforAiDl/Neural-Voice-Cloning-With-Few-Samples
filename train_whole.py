@@ -39,7 +39,7 @@ def get_cloned_voices(model,no_speakers = 108,no_cloned_texts = 23):
 # Assumes that only Deep Voice 3 is given
 def get_speaker_embeddings(model):
     '''
-        return the peaker embeddings and its shape from deep voice 3
+        return the speaker embeddings and its shape from deep voice 3
     '''
     embed = model.embed_speakers.weight.data
     # shape = embed.shape

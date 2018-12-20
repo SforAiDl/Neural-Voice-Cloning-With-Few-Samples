@@ -35,7 +35,7 @@ class Encoder(nn.Module):
         self.attention = Attention(128)
         self.prohead = nn.Linear(128,1)
         self.residual_conv = nn.Linear(128,512)
-        self.bn = nn.BatchNorm1d(N_samples)
+        self.bn = nn.BatchNorm1d(N_samples, affine = False)
 
     def forward(self, x):
         #print(x)

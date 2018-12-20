@@ -62,7 +62,7 @@ def generate_cloned_samples(model,cloning_text_path  = None, no_speakers = 108 ,
         print("The Speaker being cloned speaker-{}".format(speaker_id))
         for text in cloning_texts:
             waveform, alignment, spectrogram, mel = _tts(model, text, p, speaker_id, fast)
-            speaker_cloning_mel.append(mel)
+            speaker_cloning_mel.append([speaker_id, mel])
             #print(np.array(speaker_cloning_mel).shape)
         all_speakers.append(speaker_cloning_mel)
         with open("./Cloning_Audio/speakers_cloned_voices_mel.p", "wb") as fp:   #Pickling
@@ -78,13 +78,15 @@ def generate_cloned_samples(model,cloning_text_path  = None, no_speakers = 108 ,
     return all_speakers
 
 class Speech_Dataset(Dataset):
-    def __init__(self, mfccs, embeddings):
+    def __init__(self, mfccs, embeddings, sampler):
         '''Mfccs have to be list of lists of numpy arrays. Each of these numpy arrays will be a mel spectrogram'''
         self.voices = mfccs
         temp = [spec.shape[0] for text in self.voices for spec in text]
         largest_size = np.amax(np.array(temp))
         self._pad(largest_size)
         self.embeddings = embeddings
+        if sampler==True:
+            self.sampler = True
     
     def _pad(self, maximum_size):
         '''Input:
@@ -110,4 +112,9 @@ class Speech_Dataset(Dataset):
         return  len(self.voices)
     
     def __getitem__(self, idx):
-        return (self.voices[idx], self.embeddings[idx])
+        if self.sampler==False:
+            return (self.voices[idx], self.embeddings[idx])
+        elif self.sampler==True:
+            sample = np.random.random_intergers(1, 23, size=int(np.random.randint(1, 10, size=1)))
+return (self.voices[idx, sample, :, :], self.embeddings[idx])
+
