@@ -1,4 +1,3 @@
-HH32wqa
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -31,7 +30,7 @@ class MultiHeadAttention(nn.Module):
         self.query_layer = nn.Linear(query_dim, num_units, bias=False)
         self.key_layer = nn.Linear(key_dim, num_units, bias=False)
         self.value_layer = nn.Linear(key_dim, num_units, bias=False)
-        self.bn = nn.BatchNorm1d(num_units)
+#self.bn = nn.BatchNorm1d(num_units)
 
     def forward(self, query, keys):
         Q = F.elu(self.query_layer(query))
@@ -64,6 +63,7 @@ class MultiHeadAttention(nn.Module):
         attention += query
         attention = attention.transpose(1, 2)
         attention.contiguous()
-        attention = self.bn(attention).transpose(1, 2)
+        #attention = self.bn(attention).transpose(1, 2)
 
+        attention = F.normalize(attention, dim = 1).transpose(1, 2)
         return attention

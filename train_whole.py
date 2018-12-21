@@ -81,7 +81,6 @@ def my_collate(batch):
     samples = [text.shape[0] for text in data]
     max_size = data[0].shape[1]
     max_samples = np.amax(np.array(samples))
-    print("Producing ", max_samples, " for this epoch")
     for i, i_element in enumerate(data):
         final = torch.zeros(int(max_samples), max_size, 80)
         final[:data[i].shape[0], :, :] += torch.from_numpy(i_element).type(torch.FloatTensor)
