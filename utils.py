@@ -115,6 +115,6 @@ class Speech_Dataset(Dataset):
         if self.sampler==False:
             return (self.voices[idx], self.embeddings[idx])
         elif self.sampler==True:
-            sample = np.random.random_intergers(1, 23, size=int(np.random.randint(1, 10, size=1)))
-return (self.voices[idx, sample, :, :], self.embeddings[idx])
+            sample = np.random.random_integers(1, 22, size=int(np.random.randint(1, 10, size=1)))
+            return (self.voices[idx, sample, :, :], self.embeddings[idx])
 

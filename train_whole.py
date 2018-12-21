@@ -76,6 +76,20 @@ def load_checkpoint(encoder, optimizer, path='checkpoints/encoder_checkpoint.pth
 
     return encoder, optimizer
 
+def my_collate(batch):
+    data = [item[0] for item in batch]
+    samples = [text.shape[0] for text in data]
+    max_size = temp[0].shape[1]
+    max_samples = np.amax(np.array(samples))
+    for i, i_element in enumerate(data):
+        final = torch.zeros(max_samples, max_size, 80)
+        final[:data[i].shape[0], :, :] += i_element
+        data[i]=final
+    data = torch.from_numpy(data)
+    target = np.stack([item[1] for item in batch], 0)
+    target = torch.from_numpy(target)
+    return [data, target]
+
 def train_encoder(encoder, data, optimizer, scheduler, criterion, epochs=100000, after_epoch_download=1000):
 
     #scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.6)
@@ -88,7 +102,7 @@ def train_encoder(encoder, data, optimizer, scheduler, criterion, epochs=100000,
 
             voice, embed = element[0], element[1]
 
-            input_to_encoder = Variable(voice.type(torch.cuda.FloatTensor))
+            input_to_encoder = Variable(temp.type(torch.cuda.FloatTensor) for temp in voice)
 
             optimizer.zero_grad()
 
@@ -132,7 +146,7 @@ if __name__ == "__main__":
 
     print("Encoder is built!")
 
-    speech_data = Speech_Dataset(all_speakers, speaker_embed)
+    speech_data = Speech_Dataset(all_speakers, speaker_embed, sampler=True)
 
     criterion = nn.L1Loss()
 
@@ -141,7 +155,7 @@ if __name__ == "__main__":
     lambda1 = lambda epoch: 0.6 if epoch%8000==7999 else 1
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda1)
 
-    data_loader = DataLoader(speech_data, batch_size=batch_size, shuffle=True, drop_last=True)
+    data_loader = DataLoader(speech_data, batch_size=batch_size, shuffle=True, drop_last=True, collate_fn = my_collate)
     # Training The Encoder
     dataiter = iter(data_loader)
 
