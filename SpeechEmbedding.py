@@ -19,7 +19,6 @@ from Modules.Encoder import Attention
 
 
 batch_size = 64
-N_samples = 23
 
 
 # In[55]:
@@ -27,7 +26,6 @@ N_samples = 23
 
 class Encoder(nn.Module):
     global batch_size
-    global N_samples
     def __init__(self):
         super(Encoder, self).__init__()
         self.prenet = PreNet()
@@ -35,7 +33,7 @@ class Encoder(nn.Module):
         self.attention = Attention(128)
         self.prohead = nn.Linear(128,1)
         self.residual_conv = nn.Linear(128,512)
-        self.bn = nn.BatchNorm1d(N_samples)
+    #self.bn = nn.BatchNorm1d(N_samples, affine=False)
 
     def forward(self, x):
         N_samples = x.size(1)
@@ -54,7 +52,7 @@ class Encoder(nn.Module):
         x = self.prohead(x)
         x = torch.squeeze(x)
         x = F.softsign(x)
-        x = self.bn(x)
+        x = F.normalize(x, dim = 1)
         x = torch.unsqueeze(x, dim=2)
         x = torch.bmm(x.transpose(1,2), conv_out)
         x = torch.squeeze(x)

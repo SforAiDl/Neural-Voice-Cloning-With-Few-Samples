@@ -79,13 +79,14 @@ def load_checkpoint(encoder, optimizer, path='checkpoints/encoder_checkpoint.pth
 def my_collate(batch):
     data = [item[0] for item in batch]
     samples = [text.shape[0] for text in data]
-    max_size = temp[0].shape[1]
+    max_size = data[0].shape[1]
     max_samples = np.amax(np.array(samples))
+    print("Producing ", max_samples, " for this epoch")
     for i, i_element in enumerate(data):
-        final = torch.zeros(max_samples, max_size, 80)
-        final[:data[i].shape[0], :, :] += i_element
-        data[i]=final
-    data = torch.from_numpy(data)
+        final = torch.zeros(int(max_samples), max_size, 80)
+        final[:data[i].shape[0], :, :] += torch.from_numpy(i_element).type(torch.FloatTensor)
+        data[i]=torch.unsqueeze(final, 0)
+    data = torch.cat(data, 0)
     target = np.stack([item[1] for item in batch], 0)
     target = torch.from_numpy(target)
     return [data, target]
@@ -102,7 +103,7 @@ def train_encoder(encoder, data, optimizer, scheduler, criterion, epochs=100000,
 
             voice, embed = element[0], element[1]
 
-            input_to_encoder = Variable(temp.type(torch.cuda.FloatTensor) for temp in voice)
+            input_to_encoder = Variable(voice.type(torch.cuda.FloatTensor))
 
             optimizer.zero_grad()
 
@@ -121,8 +122,8 @@ def train_encoder(encoder, data, optimizer, scheduler, criterion, epochs=100000,
 
         if i%100==99:
             save_checkpoint(encoder,optimizer,"encoder_checkpoint.pth",i)
-        print(i, ' done')
-        print('Loss for epoch ', i, ' is ', loss)
+            print(i, ' done')
+            print('Loss for epoch ', i, ' is ', loss)
 
 def download_file(file_name=None):
     from google.colab import files
