@@ -12,6 +12,7 @@ import dv3.synthesis
 # print(os.getcwd())
 
 import dv3.hparams
+from dv3.hparams import hparams, hparams_debug_string
 import json
 
 from dv3.train import build_model
@@ -24,12 +25,9 @@ from dv3.deepvoice3_pytorch import frontend
 # print(os.getcwd())
 
 
-def build_deepvoice_3(pretrained = True , preset = None ,checkpoint_path = None):
+def build_deepvoice_3(preset = None ,checkpoint_path = None):
     if preset is None:
         preset = "./dv3/deepvoice3_vctk.json"
-
-    if checkpoint_path is None:
-        checkpoint_path = "./checkpoint_step000090000.pth"
 
     # Newly added params. Need to inject dummy values
     for dummy, v in [("fmin", 0), ("fmax", 0),
@@ -37,25 +35,27 @@ def build_deepvoice_3(pretrained = True , preset = None ,checkpoint_path = None)
                     ("rescaling_max", 0.999),
                     ("allow_clipping_in_normalization", False)]:
 
-        if dv3.hparams.hparams.get(dummy) is None:
-            dv3.hparams.hparams.add_hparam(dummy, v)
+        if hparams.get(dummy) is None:
+            hparams.add_hparam(dummy, v)
     # Load parameters from preset
     with open(preset) as f:
-        dv3.hparams.hparams.parse_json(f.read())
+        hparams.parse_json(f.read())
 
     # Tell we are using multi-speaker DeepVoice3
-    dv3.hparams.hparams.builder = "deepvoice3_multispeaker"
+    hparams.builder = "deepvoice3_multispeaker"
 
     # Inject frontend text processor
     dv3.synthesis._frontend = getattr(frontend, "en")
     dv3.train._frontend =  getattr(frontend, "en")
 
     # alises
-    fs = dv3.hparams.hparams.sample_rate
-    hop_length = dv3.hparams.hparams.hop_size
+    fs = hparams.sample_rate
+    hop_length = hparams.hop_size
     model = build_model()
-    if(pretrained):
+
+    if checkpoint_path is not None:
         model = load_checkpoint(checkpoint_path, model, None, True)
+
 
 
     return model
