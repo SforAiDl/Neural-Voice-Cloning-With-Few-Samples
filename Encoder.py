@@ -30,24 +30,5 @@ class Encoder(nn.Module):
 
 
 
-# enc = Encoder()
-
-
-# In[57]:
-
-
-# z = torch.randn(25,20,100,80)
-
-
-# In[58]:
-
-
-# out = enc(Variable(z))
-# out
-
-
-# In[63]:
-
-
 #def Temp_Masking(x):
 #Create function for temporal masking. Use librosa.decompose.hpss. Split and concatinate dimensions to make it 2D.
