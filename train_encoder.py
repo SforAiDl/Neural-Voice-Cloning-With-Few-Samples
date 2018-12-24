@@ -21,7 +21,7 @@ import os
 
 # sys.path.append('./deepvoice3_pytorch')
 from dv3 import build_deepvoice_3
-from SpeechEmbedding import Encoder
+from Encoder import Encoder
 
 # print(hparams)
 

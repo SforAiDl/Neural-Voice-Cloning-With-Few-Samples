@@ -39,7 +39,7 @@ from tensorboardX import SummaryWriter
 
 # requirements for encoder
 from utils import generate_cloned_samples, Speech_Dataset
-from SpeechEmbedding import Encoder
+from Encoder import Encoder
 from train_encoder import get_cloned_voices,build_encoder,get_speaker_embeddings
 from train_encoder import load_checkpoint as load_checkpoint_encoder
 from train_encoder import save_checkpoint as save_checkpoint_encoder
