@@ -29,33 +29,34 @@ def build_deepvoice_3(preset = None ,checkpoint_path = None):
     if preset is None:
         preset = "./dv3/deepvoice3_vctk.json"
 
-     # Newly added params. Need to inject dummy values
+    # Newly added params. Need to inject dummy values
     for dummy, v in [("fmin", 0), ("fmax", 0),
                     ("rescaling", False),
                     ("rescaling_max", 0.999),
                     ("allow_clipping_in_normalization", False)]:
 
-        if dv3.hparams.hparams.get(dummy) is None:
-            dv3.hparams.hparams.add_hparam(dummy, v)
+        if hparams.get(dummy) is None:
+            hparams.add_hparam(dummy, v)
     # Load parameters from preset
     with open(preset) as f:
-        dv3.hparams.hparams.parse_json(f.read())
+        hparams.parse_json(f.read())
 
     # Tell we are using multi-speaker DeepVoice3
-    dv3.hparams.hparams.builder = "deepvoice3_multispeaker"
+    hparams.builder = "deepvoice3_multispeaker"
 
     # Inject frontend text processor
     dv3.synthesis._frontend = getattr(frontend, "en")
     dv3.train._frontend =  getattr(frontend, "en")
 
     # alises
-    fs = dv3.hparams.hparams.sample_rate
-    hop_length = dv3.hparams.hparams.hop_size
+    fs = hparams.sample_rate
+    hop_length = hparams.hop_size
     model = build_model()
-    if(checkpoint_path not None):
+
+    if checkpoint_path is not None:
         model = load_checkpoint(checkpoint_path, model, None, True)
 
-    
+
 
     return model
     # model = build_deepvoice_3()

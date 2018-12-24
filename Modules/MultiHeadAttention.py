@@ -15,8 +15,8 @@ class MultiHeadAttention(nn.Module):
             raise ValueError("num_units must be dividable by h")
         if query_dim != num_units:
             raise ValueError("to employ residual connection, the number of query_dim and num_units must be the same")
-
-        if torch.cuda.is_available:
+        self.cuda = False
+        if torch.cuda.is_available():
             self.cuda=True
 
         self._num_units = num_units

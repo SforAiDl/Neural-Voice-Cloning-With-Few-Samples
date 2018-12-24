@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import sys
 
-from .Cloning_Samples_Attention import MultiHeadAttention
+from Modules.MultiHeadAttention import MultiHeadAttention
 
 class Attention(nn.Module):
     def __init__(self, dim):

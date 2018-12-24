@@ -76,7 +76,7 @@ def load_checkpoint(encoder, optimizer, path='checkpoints/encoder_checkpoint.pth
 
     return encoder, optimizer
 
-def train_encoder(encoder, data, optimizer, scheduler, criterion, epochs=100000, after_epoch_download=1000):
+def train(encoder, data, optimizer, scheduler, criterion, epochs=100000, after_epoch_download=1000):
 
     #scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.6)
 
@@ -110,9 +110,6 @@ def train_encoder(encoder, data, optimizer, scheduler, criterion, epochs=100000,
         print(i, ' done')
         print('Loss for epoch ', i, ' is ', loss)
 
-def download_file(file_name=None):
-    from google.colab import files
-    files.download(file_name)
 
 
 batch_size=64
@@ -151,7 +148,7 @@ if __name__ == "__main__":
         encoder, optimizer = load_checkpoint(encoder, optimizer)
 
     try:
-        train_encoder(encoder, data_loader, optimizer, scheduler, criterion, epochs=100000)
+        train(encoder, data_loader, optimizer, scheduler, criterion, epochs=100000)
     except KeyboardInterrupt:
         print("KeyboardInterrupt")
 

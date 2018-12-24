@@ -1,6 +1,9 @@
-
+ju
 from docopt import docopt
-
+import sys
+from os.path import dirname, join
+from tqdm import tqdm, trange
+from datetime import datetime
 
 import pickle
 
@@ -27,17 +30,19 @@ from dv3.hparams import hparams, hparams_debug_string
 from dv3.train import train as train_dv3
 from dv3.train import TextDataSource,MelSpecDataSource,LinearSpecDataSource,\
                         PyTorchDataset,PartialyRandomizedSimilarTimeLengthSampler
+from dv3.train import collate_fn
 from dv3.deepvoice3_pytorch import frontend
 from dv3.train import sequence_mask
 from dv3.train import save_checkpoint as save_checkpoint_dv3
 from dv3.train import save_states as save_states_dv3
+from tensorboardX import SummaryWriter
 
-
+# requirements for encoder
 from utils import generate_cloned_samples, Speech_Dataset
 from SpeechEmbedding import Encoder
 from train_encoder import get_cloned_voices,build_encoder,get_speaker_embeddings
 from train_encoder import load_checkpoint as load_checkpoint_encoder
-# from train_encoder import save_checkpoint as save_checkpoint_encoder
+from train_encoder import save_checkpoint as save_checkpoint_encoder
 from train_encoder import train as train_encoder
 
 
@@ -47,7 +52,7 @@ import os
 # sys.path.append('./deepvoice3_pytorch')
 
 # print(hparams)
-batch_size_encoder = 64
+batch_size_encoder = 16
 
 
 global_step = 0
@@ -57,9 +62,17 @@ if use_cuda:
     cudnn.benchmark = False
 
 
-def train(model_dv3 ,data_loader_dv3 , optimizer_dv3,init_lr_dv3=0.002,
-            checkpoint_dir_dv3=None,checkpoint_interval=None,nepochs=None,
-            clip_thresh = 1.0, encoder_optimizer):
+def train(model_dv3,model_encoder
+            data_loader_dv3,
+            optimizer_dv3,
+            init_lr_dv3=0.002,
+            checkpoint_dir_dv3=None,
+            clip_thresh = 1.0,
+            data_loader_encoder=None,
+            optimizer_encoder=None,
+            scheduler_encoder=None,
+            checkpoint_interval=None,
+            nepochs=None):
     # this training function is to train the combined model
 
     grad = {}
@@ -69,41 +82,12 @@ def train(model_dv3 ,data_loader_dv3 , optimizer_dv3,init_lr_dv3=0.002,
         return hook
 
     # to remember the embeddings of the speakers
-    dv3_model.embed_speakers.weight.register_hook(save_grad('embeddings'))
-
-    dv3_model.zero_grad()
-    encoder.zero_grad()
-    #---------------ENCODER---------------------
-    #foward pass on encoder
-    encoder_out = encoder(inp)
-    dv3_model.embed_speakers.weight.data = (encoder_out).data
-
-
-    #----------------------DV3------------------
-    #foward pass dv3
-    # _frontend = getattr(frontend, "en")
-    #
-    # dv3_model.eval()
-    # text = "hi bye"
-    # speaker_id = 0
-    # sequence = np.array(_frontend.text_to_sequence(text, p=0))
-    # sequence = Variable(torch.from_numpy(sequence)).unsqueeze(0)
-    # text_positions = torch.arange(1, sequence.size(-1) + 1).unsqueeze(0).long()
-    # text_positions = Variable(text_positions)
-    # speaker_ids = None if speaker_id is None else Variable(torch.LongTensor([speaker_id]))
-    #
-    # if use_cuda:
-    #     sequence = sequence.cuda()
-    #     text_positions = text_positions.cuda()
-    #     speaker_ids = None if speaker_ids is None else speaker_ids.cuda()
-    #
-    # mel_outputs, linear_outputs, alignments, done = dv3_model(
-    #     sequence, text_positions=text_positions, speaker_ids=speaker_ids)
-
+    model_dv3.embed_speakers.weight.register_hook(save_grad('embeddings'))
 
     if use_cuda:
-        model = dv3_model.cuda()
-    linear_dim = dv3_model.linear_dim
+        model_dv3 = model_dv3.cuda()
+        model_encoder = model_encoder.cuda()
+    linear_dim = model_dv3.linear_dim
     r = hparams.outputs_per_step
     downsample_step = hparams.downsample_step
     current_lr = init_lr_dv3
@@ -112,21 +96,16 @@ def train(model_dv3 ,data_loader_dv3 , optimizer_dv3,init_lr_dv3=0.002,
 
     global global_step, global_epoch
     while global_epoch < nepochs:
-        running_loss = 0.
+        running_loss = 0.0
         for step, (x, input_lengths, mel, y, positions, done, target_lengths,
                    speaker_ids) \
                 in tqdm(enumerate(data_loader_dv3)):
 
 
-            dv3_model.zero_grad()
+            model_dv3.zero_grad()
             encoder.zero_grad()
-            
-            #FOWARD ON ENCODER
 
-
-            encoder_out = encoder(inp)
-
-            #FOWARD PASS DV3
+            #Declaring Requirements
             model_dv3.train()
             ismultispeaker = speaker_ids is not None
             # Learning rate schedule
@@ -149,8 +128,10 @@ def train(model_dv3 ,data_loader_dv3 , optimizer_dv3,init_lr_dv3=0.002,
             input_lengths = input_lengths.long().numpy()
             decoder_lengths = target_lengths.long().numpy() // r // downsample_step
 
+            voice_encoder = mel.view(mel.shape[0],1,mel.shape[1],mel.shape[2])
             # Feed data
             x, mel, y = Variable(x), Variable(mel), Variable(y)
+            voice_encoder = Variable(voice_encoder)
             text_positions = Variable(text_positions)
             frame_positions = Variable(frame_positions)
             done = Variable(done)
@@ -162,6 +143,7 @@ def train(model_dv3 ,data_loader_dv3 , optimizer_dv3,init_lr_dv3=0.002,
                 frame_positions = frame_positions.cuda()
                 y = y.cuda()
                 mel = mel.cuda()
+                voice_encoder = voice_encoder.cuda()
                 done, target_lengths = done.cuda(), target_lengths.cuda()
                 speaker_ids = speaker_ids.cuda() if ismultispeaker else None
 
@@ -183,10 +165,12 @@ def train(model_dv3 ,data_loader_dv3 , optimizer_dv3,init_lr_dv3=0.002,
             else:
                 decoder_target_mask, target_mask = None, None
 
+            #apply encoder model
+
 
 
             model_dv3.embed_speakers.weight.data = (encoder_out).data
-            # Apply model
+            # Apply dv3 model
             mel_outputs, linear_outputs, attn, done_hat = model_dv3(
                     x, mel, speaker_ids=speaker_ids,
                     text_positions=text_positions, frame_positions=frame_positions,
@@ -241,12 +225,14 @@ def train(model_dv3 ,data_loader_dv3 , optimizer_dv3,init_lr_dv3=0.002,
 
             # Update
             loss_dv3.backward()
-            if clip_thresh> 0:
-                grad_norm = torch.nn.utils.clip_grad_norm(
-                    model.get_trainable_parameters(), clip_thresh)
+            encoder_out.backward(grads['embeddings'])
+
             optimizer_dv3.step()
+            optimizer_encoder.step()
 
-
+            # if clip_thresh> 0:
+            #     grad_norm = torch.nn.utils.clip_grad_norm(
+            #         model.get_trainable_parameters(), clip_thresh)
             global_step += 1
             running_loss += loss.data[0]
 
@@ -261,10 +247,7 @@ def train(model_dv3 ,data_loader_dv3 , optimizer_dv3,init_lr_dv3=0.002,
     # backward on that
     mel_outputs.backward()
     # dv3_model.embed_speakers.weight.data = (encoder_out).data
-    encoder_out.backward(grads['embeddings'])
 
-    dv3_optimizer.step()
-    encoder_optimizer.step()
 
 
 
@@ -324,7 +307,7 @@ if __name__=="main"
         collate_fn=collate_fn, pin_memory=hparams.pin_memory)
     print("dataloader for dv3 prepared")
 
-
+    dv3.train._frontend = getattr(frontend, hparams.frontend)
     dv3_model = build_deepvoice_3(dv3_preset , checkpoint_dv3)
     print("Built dv3!")
 
@@ -359,14 +342,14 @@ if __name__=="main"
     lambda1_encoder = lambda epoch: 0.6 if epoch%8000==7999 else 1#???????????
     scheduler_encoder = torch.optim.lr_scheduler.LambdaLR(optimizer_encoder, lr_lambda=lambda1_encoder)
 
-    data_loader_encoder = DataLoader(speech_data_encoder, batch_size=batch_size_encoder, shuffle=True, drop_last=True)
+    data_loader_encoder = data_utils.DataLoader(speech_data_encoder, batch_size=batch_size_encoder, shuffle=True, drop_last=True)
     # Training The Encoder
     dataiter_encoder = iter(data_loader_encoder)
 
     if use_cuda:
         encoder = encoder.cuda()
 
-    if os.path.isfile(checkpoint_encoder):
+    if checkpoint_encoder!=None and os.path.isfile(checkpoint_encoder):
         encoder, optimizer_encoder = load_checkpoint_encoder(encoder, optimizer_encoder)
 
     if train_encoder_v and train_dv3_v:
