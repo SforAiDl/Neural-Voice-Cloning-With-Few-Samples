@@ -1,4 +1,4 @@
-ju
+
 from docopt import docopt
 import sys
 from os.path import dirname, join
@@ -186,19 +186,8 @@ def train(model_dv3,model_encoder
                     mel_outputs[:, :-r, :], mel[:, r:, :], decoder_target_mask)
                 mel_loss = (1 - w) * mel_l1_loss + w * mel_binary_div
 
-<<<<<<< HEAD
-# Assumes that only Deep Voice 3 is given
-def get_speaker_embeddings(model):
-    '''
-        return the speaker embeddings and its shape from deep voice 3
-    '''
-    embed = model.embed_speakers.weight.data
-    # shape = embed.shape
-    return embed
-=======
             # done:
             done_loss = binary_criterion(done_hat, done)
->>>>>>> whole_model
 
             # linear:
             n_priority_freq = int(hparams.priority_freq / (fs * 0.5) * linear_dim)
@@ -254,36 +243,10 @@ def get_speaker_embeddings(model):
         global_epoch += 1
 
 
-<<<<<<< HEAD
-def my_collate(batch):
-    data = [item[0] for item in batch]
-    samples = [text.shape[0] for text in data]
-    max_size = data[0].shape[1]
-    max_samples = np.amax(np.array(samples))
-    for i, i_element in enumerate(data):
-        final = torch.zeros(int(max_samples), max_size, 80)
-        final[:data[i].shape[0], :, :] += torch.from_numpy(i_element).type(torch.FloatTensor)
-        data[i]=torch.unsqueeze(final, 0)
-    data = torch.cat(data, 0)
-    target = np.stack([item[1] for item in batch], 0)
-    target = torch.from_numpy(target)
-    return [data, target]
-
-def train_encoder(encoder, data, optimizer, scheduler, criterion, epochs=100000, after_epoch_download=1000):
-=======
     # dv3 loss function
     # backward on that
     mel_outputs.backward()
     # dv3_model.embed_speakers.weight.data = (encoder_out).data
->>>>>>> whole_model
-
-
-
-
-
-
-
-
 
 
 if __name__=="main"
@@ -300,13 +263,6 @@ if __name__=="main"
     if data_root is None:
         data_root = join(dirname(__file__), "data", "ljspeech")
 
-<<<<<<< HEAD
-        if i%100==99:
-            save_checkpoint(encoder,optimizer,"encoder_checkpoint.pth",i)
-            print(i, ' done')
-            print('Loss for epoch ', i, ' is ', loss)
-=======
->>>>>>> whole_model
 
 
     train_dv3_v = args["--train-dv3"]
@@ -369,11 +325,7 @@ if __name__=="main"
 
     print("Encoder is built!")
 
-<<<<<<< HEAD
-    speech_data = Speech_Dataset(all_speakers, speaker_embed, sampler=True)
-=======
     speech_data_encoder = Speech_Dataset(all_speakers, speaker_embed)
->>>>>>> whole_model
 
     criterion_encoder = nn.L1Loss()
 
@@ -382,11 +334,7 @@ if __name__=="main"
     lambda1_encoder = lambda epoch: 0.6 if epoch%8000==7999 else 1#???????????
     scheduler_encoder = torch.optim.lr_scheduler.LambdaLR(optimizer_encoder, lr_lambda=lambda1_encoder)
 
-<<<<<<< HEAD
-    data_loader = DataLoader(speech_data, batch_size=batch_size, shuffle=True, drop_last=True, collate_fn = my_collate)
-=======
     data_loader_encoder = data_utils.DataLoader(speech_data_encoder, batch_size=batch_size_encoder, shuffle=True, drop_last=True)
->>>>>>> whole_model
     # Training The Encoder
     dataiter_encoder = iter(data_loader_encoder)
 
