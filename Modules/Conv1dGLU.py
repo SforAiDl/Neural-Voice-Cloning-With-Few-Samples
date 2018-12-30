@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 import math
-import sys
 
 class Conv1dGLU(nn.Module):
     '''
@@ -23,7 +22,7 @@ class Conv1dGLU(nn.Module):
     def forward(self, x):
         residual = x
         x = self.conv1(x)
-        x1, x2 = torch.split(x, split_size_or_sections = 128, dim = 1)
+        x1, x2 = torch.split(x, split_size = 128, dim = 1)
         x = x1 * torch.sigmoid(x2)
         x += residual
         x *= math.sqrt(0.5)

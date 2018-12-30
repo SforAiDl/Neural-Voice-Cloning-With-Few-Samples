@@ -4,7 +4,7 @@ unidecode
 inflect
 librosa
 numba
-lws<=1.0
+lws <= 1.0
 
 [jp]
 jaconv
@@ -17,5 +17,5 @@ nose
 docopt
 tqdm
 tensorboardX
-nnmnkwii>=0.0.9
+nnmnkwii >= 0.0.9
 nltk

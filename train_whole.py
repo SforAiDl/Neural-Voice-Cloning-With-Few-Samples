@@ -1,4 +1,3 @@
-
 from docopt import docopt
 import sys
 from os.path import dirname, join
@@ -18,38 +17,17 @@ from torch.utils import data as data_utils
 from torch.utils.data.sampler import Sampler
 import numpy as np
 from numba import jit
-from nnmnkwii.datasets import FileSourceDataset, FileDataSource
-from os.path import join, expanduser
 
 
-# import requirements for dv3
 from utils import generate_cloned_samples, Speech_Dataset
 import dv3
-from dv3 import build_deepvoice_3
-from dv3.hparams import hparams, hparams_debug_string
-from dv3.train import train as train_dv3
-from dv3.train import TextDataSource,MelSpecDataSource,LinearSpecDataSource,\
-                        PyTorchDataset,PartialyRandomizedSimilarTimeLengthSampler
-from dv3.train import collate_fn
-from dv3.deepvoice3_pytorch import frontend
-from dv3.train import sequence_mask
-from dv3.train import save_checkpoint as save_checkpoint_dv3
-from dv3.train import save_states as save_states_dv3
-from tensorboardX import SummaryWriter
-
-# requirements for encoder
-from utils import generate_cloned_samples, Speech_Dataset
-from Encoder import Encoder
-from train_encoder import get_cloned_voices,build_encoder,get_speaker_embeddings
-from train_encoder import load_checkpoint as load_checkpoint_encoder
-from train_encoder import save_checkpoint as save_checkpoint_encoder
-from train_encoder import train as train_encoder
-
 
 import sys
 import os
 
 # sys.path.append('./deepvoice3_pytorch')
+from dv3 import build_deepvoice_3
+from SpeechEmbedding import Encoder
 
 # print(hparams)
 batch_size_encoder = 16
@@ -61,7 +39,7 @@ use_cuda = torch.cuda.is_available()
 if use_cuda:
     cudnn.benchmark = False
 
-
+"""
 def train(model_dv3,model_encoder
             data_loader_dv3,
             optimizer_dv3,
@@ -247,75 +225,121 @@ def train(model_dv3,model_encoder
     # backward on that
     mel_outputs.backward()
     # dv3_model.embed_speakers.weight.data = (encoder_out).data
+======="""
+
+def get_cloned_voices(model,no_speakers = 108,no_cloned_texts = 23):
+    try:
+        with open("./Cloning_Audio/speakers_cloned_voices_mel.p" , "rb") as fp:
+            cloned_voices = pickle.load(fp)
+    except:
+        cloned_voices = generate_cloned_samples(model)
+    if(np.array(cloned_voices).shape != (no_speakers , no_cloned_texts)):
+        cloned_voices = generate_cloned_samples(model,"./Cloning_Audio/cloning_text.txt" ,no_speakers,True,0)
+    print("Cloned_voices Loaded!")
+    return cloned_voices
+
+# Assumes that only Deep Voice 3 is given
+def get_speaker_embeddings(model):
+    '''
+        return the speaker embeddings and its shape from deep voice 3
+    '''
+    embed = model.embed_speakers.weight.data
+    # shape = embed.shape
+    return embed
+
+def build_encoder():
+    encoder = Encoder()
+    return encoder
 
 
-if __name__=="main"
+def save_checkpoint(model, optimizer, checkpoint_path, epoch):
 
-    args = docopt(__doc__)
-    print("Command line args:\n",args)
+    optimizer_state = optimizer.state_dict()
+    torch.save({
+        "state_dict": model.state_dict(),
+        "optimizer": optimizer_state,
+        "global_epoch": epoch,
+        "epoch":epoch+1,
 
-    checkpoint_dv3 = args["--checkpoints-dv3"]
-    checkpoint_encoder = args["--checkpoint-encoder"]
-    speaker_id = None
-    dv3_preset =None
+    }, checkpoint_path)
+    print("Saved checkpoint:", checkpoint_path)
 
-    data_root = args["--data-root"]
-    if data_root is None:
-        data_root = join(dirname(__file__), "data", "ljspeech")
+def load_checkpoint(encoder, optimizer, path='checkpoints/encoder_checkpoint.pth'):
+
+    checkpoint = torch.load(path)
+
+    encoder.load_state_dict(checkpoint["state_dict"])
+
+    print('Encoder state restored')
+
+    optimizer.load_state_dict(checkpoint["optimizer"])
+
+    print('Optimizer state restored')
+
+    return encoder, optimizer
+
+def my_collate(batch):
+    data = [item[0] for item in batch]
+    samples = [text.shape[0] for text in data]
+    max_size = data[0].shape[1]
+    max_samples = np.amax(np.array(samples))
+    for i, i_element in enumerate(data):
+        final = torch.zeros(int(max_samples), max_size, 80)
+        final[:data[i].shape[0], :, :] += torch.from_numpy(i_element).type(torch.FloatTensor)
+        data[i]=torch.unsqueeze(final, 0)
+    data = torch.cat(data, 0)
+    target = np.stack([item[1] for item in batch], 0)
+    target = torch.from_numpy(target)
+    return [data, target]
+
+def train_encoder(encoder, data, optimizer, scheduler, criterion, epochs=100000, after_epoch_download=1000):
+
+    #scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.6)
+
+    for i in range(epochs):
+
+        epoch_loss=0.0
+
+        for i_element, element in enumerate(data):
+
+            voice, embed = element[0], element[1]
+
+            input_to_encoder = Variable(voice.type(torch.cuda.FloatTensor))
+
+            optimizer.zero_grad()
+
+            output_from_encoder = encoder(input_to_encoder)
+
+            embeddings = Variable(embed.type(torch.cuda.FloatTensor))
+
+            loss = criterion(output_from_encoder,embeddings)
+
+            loss.backward()
+
+            scheduler.step()
+            optimizer.step()
+
+            epoch_loss+=loss
 
 
+        if i%100==99:
+            save_checkpoint(encoder,optimizer,"encoder_checkpoint.pth",i)
+            print(i, ' done')
+            print('Loss for epoch ', i, ' is ', loss)
 
-    train_dv3_v = args["--train-dv3"]
-    train_encoder_v = args["--train-encoder"]
+def download_file(file_name=None):
+    from google.colab import files
+    files.download(file_name)
 
 
-    if not train_dv3_v and not train_encoder_v:
-        print("Training whole model")
-        train_dv3_v,train_encoder_v= True,True
-    if train_dv3_v:
-        print("Training deep voice 3 model")
-    elif train_encoder_v:
-        print("Training encoder model")
-    else:
-        assert False, "must be specified wrong args"
+batch_size=64
 
-    os.makedirs(checkpoint_dir , exist_ok=True)
+if __name__ == "__main__":
 
-    # Input dataset definitions
-    X = FileSourceDataset(TextDataSource(data_root, speaker_id))
-    Mel = FileSourceDataset(MelSpecDataSource(data_root, speaker_id))
-    Y = FileSourceDataset(LinearSpecDataSource(data_root, speaker_id))
+    #Load Deep Voice 3
+    # Pre Trained Model
+    dv3_model = build_deepvoice_3(True)
 
-    # Prepare sampler
-    frame_lengths = Mel.file_data_source.frame_lengths
-    sampler = PartialyRandomizedSimilarTimeLengthSampler(
-        frame_lengths, batch_size=hparams.batch_size)
-
-    # Dataset and Dataloader setup
-    dataset = PyTorchDataset(X, Mel, Y)
-    data_loader_dv3 = data_utils.DataLoader(
-        dataset, batch_size=hparams.batch_size,
-        num_workers=hparams.num_workers, sampler=sampler,
-        collate_fn=collate_fn, pin_memory=hparams.pin_memory)
-    print("dataloader for dv3 prepared")
-
-    dv3.train._frontend = getattr(frontend, hparams.frontend)
-    dv3_model = build_deepvoice_3(dv3_preset , checkpoint_dv3)
-    print("Built dv3!")
-
-    if use_cuda:
-        dv3_model = dv3_model.cuda()
-
-    dv3_optimizer = optim.Adam((dv3_model.get_trainable_parameters(),
-                           lr=hparams.initial_learning_rate, betas=(
-        hparams.adam_beta1, hparams.adam_beta2),
-        eps=hparams.adam_eps, weight_decay=hparams.weight_decay)
-
-    log_event_path = "log/run-test" + str(datetime.now()).replace(" ", "_")
-    print("Log event path for dv3: {}".format(log_event_path))
-    writer_dv3 = SummaryWriter(log_dir=log_event_path)
-
-    # ENCODER
     all_speakers = get_cloned_voices(dv3_model)
     print("Cloning Texts are produced")
 
@@ -325,51 +349,29 @@ if __name__=="main"
 
     print("Encoder is built!")
 
-    speech_data_encoder = Speech_Dataset(all_speakers, speaker_embed)
 
-    criterion_encoder = nn.L1Loss()
+    speech_data = Speech_Dataset(all_speakers, speaker_embed, sampler=True)
 
-    optimizer_encoder = torch.optim.SGD(encoder.parameters(),lr=0.0006)
+    criterion = nn.L1Loss()
 
-    lambda1_encoder = lambda epoch: 0.6 if epoch%8000==7999 else 1#???????????
-    scheduler_encoder = torch.optim.lr_scheduler.LambdaLR(optimizer_encoder, lr_lambda=lambda1_encoder)
+    optimizer = torch.optim.SGD(encoder.parameters(),lr=0.0006)
 
-    data_loader_encoder = data_utils.DataLoader(speech_data_encoder, batch_size=batch_size_encoder, shuffle=True, drop_last=True)
+    lambda1 = lambda epoch: 0.6 if epoch%8000==7999 else 1
+    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda1)
+
+
+    data_loader = DataLoader(speech_data, batch_size=batch_size, shuffle=True, drop_last=True, collate_fn = my_collate)
     # Training The Encoder
-    dataiter_encoder = iter(data_loader_encoder)
 
-    if use_cuda:
-        encoder = encoder.cuda()
+    encoder = encoder.cuda()
 
-    if checkpoint_encoder!=None and os.path.isfile(checkpoint_encoder):
-        encoder, optimizer_encoder = load_checkpoint_encoder(encoder, optimizer_encoder)
-
-    if train_encoder_v and train_dv3_v:
-        try:
-            train()
-        except KeyboardInterrupt:
-            print("KeyboardInterrupt")
-    elif train_encoder_v:
-        try:
-            train_encoder(encoder , data_loader_encoder , optimizer_encoder,scheduler_encoder,criterion_encoder,epochs=100000)
-        except KeyboardInterrupt:
-
-            print("KeyboardInterrupt")
-
-    elif train_dv3_v:
-        try:
-            train_dv3(dv3_model ,data_loader_dv3, dv3_optimizer, writer_dv3,
-                  init_lr=hparams.initial_learning_rate,
-                  checkpoint_dir=checkpoint_dv3,
-                  checkpoint_interval=hparams.checkpoint_interval,
-                  nepochs=hparams.nepochs,
-                  clip_thresh=hparams.clip_thresh,
-                  train_seq2seq=True, train_postnet=True)
-        except KeyboardInterrupt:
-
-            print("KeyboardInterrupt")
-    else:
-        assert False , "Wrongs arguments specified"
+    if os.path.isfile('checkpoints/encoder_checkpoint.pth'):
+        encoder, optimizer = load_checkpoint(encoder, optimizer)
+    
+    try:
+        train_encoder(encoder, data_loader, optimizer, scheduler, criterion, epochs=100000)
+    except KeyboardInterrupt:
+        print("KeyboardInterrupt")
 
     print("Finished")
     sys.exit(0)
