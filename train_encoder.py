@@ -1,3 +1,9 @@
+from docopt import docopt
+import sys
+from os.path import dirname, join
+from tqdm import tqdm, trange
+from datetime import datetime
+
 import pickle
 
 import torch
@@ -24,6 +30,14 @@ from dv3 import build_deepvoice_3
 from Encoder import Encoder
 
 # print(hparams)
+batch_size_encoder = 16
+
+
+global_step = 0
+global_epoch = 0
+use_cuda = torch.cuda.is_available()
+if use_cuda:
+    cudnn.benchmark = False
 
 def get_cloned_voices(model,no_speakers = 108,no_cloned_texts = 23):
     try:
@@ -39,7 +53,7 @@ def get_cloned_voices(model,no_speakers = 108,no_cloned_texts = 23):
 # Assumes that only Deep Voice 3 is given
 def get_speaker_embeddings(model):
     '''
-        return the peaker embeddings and its shape from deep voice 3
+        return the speaker embeddings and its shape from deep voice 3
     '''
     embed = model.embed_speakers.weight.data
     # shape = embed.shape
@@ -76,7 +90,21 @@ def load_checkpoint(encoder, optimizer, path='checkpoints/encoder_checkpoint.pth
 
     return encoder, optimizer
 
-def train(encoder, data, optimizer, scheduler, criterion, epochs=100000, after_epoch_download=1000):
+def my_collate(batch):
+    data = [item[0] for item in batch]
+    samples = [text.shape[0] for text in data]
+    max_size = data[0].shape[1]
+    max_samples = np.amax(np.array(samples))
+    for i, i_element in enumerate(data):
+        final = torch.zeros(int(max_samples), max_size, 80)
+        final[:data[i].shape[0], :, :] += torch.from_numpy(i_element).type(torch.FloatTensor)
+        data[i]=torch.unsqueeze(final, 0)
+    data = torch.cat(data, 0)
+    target = np.stack([item[1] for item in batch], 0)
+    target = torch.from_numpy(target)
+    return [data, target]
+
+def train_encoder(encoder, data, optimizer, scheduler, criterion, epochs=100000, after_epoch_download=1000):
 
     #scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.6)
 
@@ -105,11 +133,15 @@ def train(encoder, data, optimizer, scheduler, criterion, epochs=100000, after_e
 
             epoch_loss+=loss
 
+
         if i%100==99:
             save_checkpoint(encoder,optimizer,"encoder_checkpoint.pth",i)
-        print(i, ' done')
-        print('Loss for epoch ', i, ' is ', loss)
+            print(i, ' done')
+            print('Loss for epoch ', i, ' is ', loss)
 
+def download_file(file_name=None):
+    from google.colab import files
+    files.download(file_name)
 
 
 batch_size=64
@@ -118,8 +150,9 @@ if __name__ == "__main__":
 
     #Load Deep Voice 3
     # Pre Trained Model
+    print("start")
     dv3_model = build_deepvoice_3(True)
-
+    print("dv3 built")
     all_speakers = get_cloned_voices(dv3_model)
     print("Cloning Texts are produced")
 
@@ -129,7 +162,8 @@ if __name__ == "__main__":
 
     print("Encoder is built!")
 
-    speech_data = Speech_Dataset(all_speakers, speaker_embed)
+
+    speech_data = Speech_Dataset(all_speakers, speaker_embed, sampler=True)
 
     criterion = nn.L1Loss()
 
@@ -138,9 +172,9 @@ if __name__ == "__main__":
     lambda1 = lambda epoch: 0.6 if epoch%8000==7999 else 1
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda1)
 
-    data_loader = DataLoader(speech_data, batch_size=batch_size, shuffle=True, drop_last=True)
+
+    data_loader = DataLoader(speech_data, batch_size=batch_size, shuffle=True, drop_last=True, collate_fn = my_collate)
     # Training The Encoder
-    dataiter = iter(data_loader)
 
     encoder = encoder.cuda()
 
@@ -148,7 +182,7 @@ if __name__ == "__main__":
         encoder, optimizer = load_checkpoint(encoder, optimizer)
 
     try:
-        train(encoder, data_loader, optimizer, scheduler, criterion, epochs=100000)
+        train_encoder(encoder, data_loader, optimizer, scheduler, criterion, epochs=100000)
     except KeyboardInterrupt:
         print("KeyboardInterrupt")
 

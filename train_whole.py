@@ -62,7 +62,7 @@ if use_cuda:
     cudnn.benchmark = False
 
 
-def train(model_dv3,model_encoder
+def train(model_dv3,model_encoder,
             data_loader_dv3,
             optimizer_dv3,
             init_lr_dv3=0.002,
