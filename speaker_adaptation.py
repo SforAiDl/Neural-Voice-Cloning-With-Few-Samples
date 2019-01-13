@@ -976,11 +976,13 @@ if __name__ == "__main__":
         num_workers=hparams.num_workers, sampler=sampler,
         collate_fn=collate_fn, pin_memory=hparams.pin_memory)
     print("dataloader_prepared")
-
+    sys.stdout.flush()
     # Model
     model = build_model()
     if use_cuda:
         model = model.cuda()
+    print("Model Built!")
+    sys.stdout.flush()
 
     optimizer = optim.Adam(model.get_trainable_parameters(),
                            lr=hparams.initial_learning_rate, betas=(
