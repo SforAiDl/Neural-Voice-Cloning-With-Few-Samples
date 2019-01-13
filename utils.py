@@ -87,18 +87,18 @@ class Speech_Dataset(Dataset):
         self.embeddings = embeddings
         if sampler==True:
             self.sampler = True
-    
+
     def _pad(self, maximum_size):
         '''Input:
             Specs: Mel Spectrograms with 80 channels but the length of each channel is not the same.
             maximum_size: Largest channel length. Others are padded to this length
-            
+
             Padding with 0 won't affect the convolutions because anyway the neurons corresponding to the states have to
             be dead if they are not padded. Putting 0 will also make those neurons dead. And later an average is taken along
             this dimension too.
-            
+
             Returns: A padded array of arrays of spectrograms.'''
-        
+
         for i, i_element in enumerate(self.voices):
             for j, j_element in enumerate(i_element):
                 final = np.zeros((maximum_size, 80))
@@ -106,15 +106,14 @@ class Speech_Dataset(Dataset):
                 self.voices[i][j]=final
         self.voices = np.array(self.voices)
         print(self.voices.shape)
-    
+
     def __len__(self):
         '''Returns total number of speakers'''
         return  len(self.voices)
-    
+
     def __getitem__(self, idx):
         if self.sampler==False:
             return (self.voices[idx], self.embeddings[idx])
         elif self.sampler==True:
             sample = np.random.random_integers(1, 22, size=int(np.random.randint(1, 10, size=1)))
             return (self.voices[idx, sample, :, :], self.embeddings[idx])
-
