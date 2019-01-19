@@ -17,6 +17,7 @@ options:
     --load-embedding=<path>      Load embedding from checkpoint.
     --speaker-id=<N>             Use specific speaker of data in case for multi-speaker datasets.
     -h, --help                   Show this help message and exit
+    --checkpoint-interval=<N>    Save after so many iterations
 """
 from docopt import docopt
 
@@ -921,7 +922,7 @@ if __name__ == "__main__":
     checkpoint_restore_parts = args["--restore-parts"]
     speaker_id = args["--speaker-id"]
     speaker_id = int(speaker_id) if speaker_id is not None else None
-    checkpoint_interval = int(args["--checkpoint_interval"])
+    checkpoint_interval = int(args["--checkpoint-interval"])
 
     if checkpoint_interval is None:
         checkpoint_interval = hparams.checkpoint_interval
