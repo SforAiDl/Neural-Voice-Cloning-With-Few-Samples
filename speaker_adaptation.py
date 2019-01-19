@@ -548,6 +548,7 @@ def save_states(global_step, writer, mel_outputs, linear_outputs, attn, mel, y,
             global_step))
         try:
             # writer.add_audio("Predicted audio signal", signal, global_step, sample_rate=fs)
+            pass
         except Exception as e:
             warn(str(e))
             pass
