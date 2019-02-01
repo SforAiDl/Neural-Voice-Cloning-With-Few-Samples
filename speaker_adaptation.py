@@ -224,6 +224,7 @@ class _NPYDataSource(FileDataSource):
                 self.frame_lengths = list(np.array(self.frame_lengths)[indices])
                 # aha, need to cast numpy.int64 to int
                 self.frame_lengths = list(map(int, self.frame_lengths))
+                return paths
 
             if self.train_set == 1:
                 indices = np.array(speaker_ids) <= 83
