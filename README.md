@@ -27,7 +27,7 @@ the multi-speaker model, 8 speakers for validation, and 16 speakers for cloning.
 
 The following will train the model on the first 84 speakers in the dataset.
 
-```python
+```
 python speaker_adaptation.py --data-root=<path_of_vctk_dataset> --checkpoint-dir=<path> --checkpoint-interval=<int>
 ```
 
@@ -35,7 +35,7 @@ This can take upto 20 hours using a GPU.
 
 To adapt the model to a particular speaker after the initial training
 
-```python
+```
 python speaker_adaptation.py --data-root=<path_of_vctk_dataset> --restore-parts=<path_of_checkpoint> --checkpoint-dir=<path> --checkpoint-interval=<int>
 
 ```
