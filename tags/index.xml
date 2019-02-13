@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Tags on An open source implementation of Deep Voice 3: Scaling Text-to-Speech with Convolutional Sequence Learning</title>
+    <link>https://r9y9.github.io/deepvoice3_pytorch/tags/</link>
+    <description>Recent content in Tags on An open source implementation of Deep Voice 3: Scaling Text-to-Speech with Convolutional Sequence Learning</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>ja-jp</language>
+    
+	<atom:link href="https://r9y9.github.io/deepvoice3_pytorch/tags/index.xml" rel="self" type="application/rss+xml" />
+    
+    
+  </channel>
+</rss>
