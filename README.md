@@ -46,7 +46,7 @@ This will take on an average of 10 to 20 minutes.
 #### Some Cloned Voices
 
 
-So far some of the coned voices we have got using speaker adaptation [LINK]()
+So far some of the coned voices we have got using speaker adaptation [LINK](http://saidl.in/Neural-Voice-Cloning-With-Few-Samples/)
 
 
 
