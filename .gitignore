@@ -1,0 +1,14 @@
+.ipynb_checkpoints/
+venv/
+Verification-Models/
+temp_model_load.ipynb
+__pycache__/
+.DS_Store
+log/
+
+
+Modules/__pycache__
+dv3/__pycache__
+DataLoading.ipynb
+utils.pyc
+DataLoadingVCTK.ipynb

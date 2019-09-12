@@ -167,6 +167,7 @@ class _NPYDataSource(FileDataSource):
         self.frame_lengths = []
         self.speaker_id = speaker_id
         self.train_set = train_set
+        self.mel_or_spec = mel_or_spec
 
     def collect_files(self):
         meta = join(self.data_root, "train.txt")
@@ -178,8 +179,8 @@ class _NPYDataSource(FileDataSource):
         self.frame_lengths = list(
             map(lambda l: int(l.decode("utf-8").split("|")[2]), lines))
 
-        assert mel_or_spec=='mel' or mel_or_spec == 'spec'
-        if mel_or_spec == 'mel':
+        assert self.mel_or_spec=='mel' or self.mel_or_spec == 'spec'
+        if self.mel_or_spec == 'mel':
             self.data_root = join(self.data_root , 'mels')
         else:
             self.data_root = join(self.data_root , 'spec')
