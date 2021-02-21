@@ -63,3 +63,19 @@ So far some of the coned voices we have got using speaker adaptation [LINK](http
 - The implementation of Multi-Speaker Generative model was inspired from https://github.com/r9y9/deepvoice3_pytorch
 
 - [Neural Voice Cloning with Few Samples](https://arxiv.org/pdf/1802.06006)
+
+
+# Cite
+
+If you find the code in the repository useful, please cite it using:
+
+```
+@misc{chitlangia2021voicecloning,
+  author = {Chitlangia, Sharad and Rastogi Mehul},
+  title = {An Open Source Implementation of Neural Voice Cloning With Few Samples},
+  year = {2021},
+  publisher = {GitHub},
+  journal = {GitHub repository},
+  howpublished = {\url{https://github.com/SforAiDl/Neural-Voice-Cloning-With-Few-Samples/}},
+}
+```
