@@ -76,6 +76,6 @@ If you find the code in the repository useful, please cite it using:
   year = {2021},
   publisher = {GitHub},
   journal = {GitHub repository},
-  howpublished = {\url{https://github.com/SforAiDl/Neural-Voice-Cloning-With-Few-Samples/}},
+  howpublished = {Available at \url{https://github.com/SforAiDl/Neural-Voice-Cloning-With-Few-Samples/} or \url{https://github.com/Sharad24/Neural-Voice-Cloning-With-Few-Samples/}},
 }
 ```
